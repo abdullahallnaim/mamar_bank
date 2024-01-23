@@ -17,7 +17,7 @@ from transactions.forms import (
     LoanRequestForm,
 )
 from transactions.models import Transaction
-
+from accounts.models import UserBankAccount
 def send_transaction_email(user, amount, subject, template):
         message = render_to_string(template, {
             'user' : user,
@@ -192,3 +192,35 @@ class LoanListView(LoginRequiredMixin,ListView):
         queryset = Transaction.objects.filter(account=user_account,transaction_type=3)
         print(queryset)
         return queryset
+
+
+from django.urls import reverse_lazy
+from django.views.generic.edit import FormView
+from .forms import TransactionForm
+
+class TransferView(FormView):
+    template_name = 'transactions/transfer.html'
+    form_class = TransactionForm
+    success_url = reverse_lazy('loan_list')  # Replace 'success' with your success URL name
+
+    def form_valid(self, form):
+        # Process the form data here (e.g., save to database)
+        account_number = form.cleaned_data['account_number']
+        amount = form.cleaned_data['amount']
+        user_account = UserBankAccount.objects.filter(account_no=account_number).first()
+        print(user_account)
+        if amount > self.request.user.account.balance:
+            messages.error(
+            self.request,
+            f'Transfer amount is greater than available balance'
+            )
+            return redirect('transfer')
+        user_account.balance += amount
+        self.request.user.account.balance -= amount
+        messages.success(
+            self.request,
+            f'Transfer Done'
+            )
+        print(account_number, amount)
+        # You can perform actions with account_number and amount here
+        return super().form_valid(form)
